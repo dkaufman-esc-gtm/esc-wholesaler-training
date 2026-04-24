@@ -502,12 +502,16 @@
 
 <script>
   // ============================================================
-  // CONFIG — change PASS_THRESHOLD to tighten to 95% or 100%
+  // CONFIG
   // ============================================================
   const PASS_THRESHOLD = 0.90; // 0.90 = 90%; change to 0.95 or 1.0 to tighten
   const REQUIRE_CRITICAL_ALL = true; // if true, must get all critical questions right
   const MANAGER_EMAIL = "david.kaufman@vouch.us"; // CC'd on every results email
   const MANAGER_NAME = "David Kaufman";
+
+  // Google Apps Script deployment URL — logs submissions to the results Sheet + emails David.
+  // Leave empty string to disable auto-logging.
+  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/vouch.us/s/AKfycbyka_iWnftfvNmm6MQIVAm8Xd6ONT9znIq-Vr1ROi6FrBNY61XpNMQoK-Qi4CfiQvKITg/exec";
 
   // ============================================================
   // QUESTION BANK
@@ -962,6 +966,34 @@ ${passed
       verdict: verdictShort,
       passed: passed
     };
+
+    // Auto-log to Google Apps Script endpoint (if configured).
+    // Fire-and-forget; uses no-cors + text/plain to skip CORS preflight.
+    if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.startsWith("https://script.google.com/")) {
+      try {
+        fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            name: taker.name,
+            email: taker.email,
+            role: taker.role || "",
+            score_pct: Math.round(scorePct * 100),
+            correct: correctCount,
+            incorrect: totalCount - correctCount,
+            total: totalCount,
+            critical_passed: criticalPassed,
+            critical_total: criticalTotal,
+            verdict: verdictShort.replace(" ", "_"),
+            missed_questions: incorrect.join(", "),
+            timestamp: now.toISOString()
+          })
+        }).catch(e => console.log("Submission log failed:", e));
+      } catch (e) {
+        console.log("Submission log failed:", e);
+      }
+    }
 
     // Swap views
     document.getElementById("intro-quiz").querySelector(".submit-wrap").style.display = "none";
