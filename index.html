@@ -423,8 +423,8 @@
       <ul>
         <li><strong>Passing score:</strong> <span id="threshold-display">90% (18 of 20 correct)</span> AND 100% on the 4 critical-path questions (flagged in red).</li>
         <li><strong>No time limit.</strong> Take as long as you need. Reference the playbook and quick-reference doc if you want to.</li>
-        <li><strong>After submitting,</strong> you'll be prompted to email your results — the email is pre-filled and goes to you with David CC'd. Just click Send in your mail client.</li>
-        <li><strong>You cannot submit a B&W placement until this is passed.</strong> David gives the greenlight once he receives a passing score.</li>
+        <li><strong>Results post automatically</strong> to <strong>#esc-wholesale-submissions</strong> in Slack when you submit. No email to send, no extra steps.</li>
+        <li><strong>You cannot submit a B&W placement until this is passed.</strong> David gives the greenlight once he sees a passing score in Slack.</li>
         <li><strong>If you fail:</strong> review the feedback, re-read the materials, re-take. No cap on attempts.</li>
       </ul>
     </div>
@@ -486,15 +486,14 @@
     </div>
 
     <div class="breakdown">
-      <h3>Send your results</h3>
-      <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">Click <strong>Email Results</strong> below. Your default mail client will open with everything pre-filled — addressed to you, CC'd to David. Just click <strong>Send</strong>. David will greenlight you once he receives a passing score.</p>
+      <h3 id="results-status-title">Your results have been submitted</h3>
+      <p id="results-status-msg" style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">Your results were posted automatically to <strong id="slack-channel-display">#esc-wholesale-submissions</strong>. David will follow up to greenlight you for B&W submissions once he reviews your score.</p>
       <div class="summary-box" id="summary-text"></div>
       <div class="action-row">
-        <button class="btn" id="email-btn">✉  Email Results</button>
-        <button class="btn btn-secondary" id="copy-btn">Copy to Clipboard (backup)</button>
+        <button class="btn btn-secondary" id="copy-btn">Copy Summary (for your records)</button>
         <button class="btn btn-secondary" id="retake-btn">Retake Assessment</button>
       </div>
-      <div class="mini-note">If the email button doesn't open your mail client (common on some restricted browsers), copy the summary above and paste it into a new email to <strong>david.kaufman@vouch.us</strong>.</div>
+      <div class="mini-note" id="results-fallback-note">If you don't see your results post in Slack within a minute, copy the summary above and DM David directly.</div>
     </div>
   </div>
 
@@ -506,20 +505,24 @@
   // ============================================================
   const PASS_THRESHOLD = 0.90; // 0.90 = 90%; change to 0.95 or 1.0 to tighten
   const REQUIRE_CRITICAL_ALL = true; // if true, must get all critical questions right
-  const MANAGER_EMAIL = "david.kaufman@vouch.us"; // CC'd on every results email
   const MANAGER_NAME = "David Kaufman";
+  const SLACK_CHANNEL = "#esc-wholesale-submissions";
 
-  // Google Apps Script deployment URL — logs submissions to the results Sheet + emails David.
-  // Leave empty string to disable auto-logging.
-  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/vouch.us/s/AKfycbyka_iWnftfvNmm6MQIVAm8Xd6ONT9znIq-Vr1ROi6FrBNY61XpNMQoK-Qi4CfiQvKITg/exec";
+  // Slack Incoming Webhook URL — posts every submission to the configured channel.
+  // Get from: api.slack.com → Your Apps → New App → Incoming Webhooks → Add to workspace.
+  // Leave empty to disable auto-posting.
+  const SLACK_WEBHOOK_URL = "";
 
   // ============================================================
   // QUESTION BANK
   // ============================================================
   const questions = [
-    // -------- SECTION 1: COMPLIANCE (8 Qs) --------
+    // ============================================================
+    // SECTION 1 — WHOLESALE 101 (8 Qs)
+    // Definitions, why we use wholesalers, what makes the relationship work
+    // ============================================================
     {
-      section: "Compliance — Retail vs. Wholesale Distribution",
+      section: "Wholesale 101 — Vocabulary, Reasons, Relationship",
       text: "Which of the following best describes the relationship between Vouch and Burns & Wilcox?",
       type: "single",
       options: [
@@ -529,7 +532,7 @@
         "B&W is a competitor we're partnering with on referrals."
       ],
       correct: [1],
-      explanation: "B&W is a wholesale broker. They sit between Vouch (retail) and carriers we can't access directly — especially non-admitted / surplus-lines carriers. They never interact with our client."
+      explanation: "B&W is a wholesale broker. They sit between Vouch (retail) and carriers we can't access directly — especially non-admitted / surplus-lines carriers. They never interact with our client. We tell them what the client needs; they shop their markets."
     },
     {
       text: "What does \"non-admitted\" mean in the context of a surplus-lines placement?",
@@ -551,48 +554,46 @@
         "False"
       ],
       correct: [1],
-      explanation: "False. Non-admitted policies are NOT backed by the state guaranty fund. If the carrier becomes insolvent, policyholders are general creditors. That's the main risk disclosure the client must sign before bind."
+      explanation: "False. Non-admitted policies are NOT backed by the state guaranty fund. If the carrier becomes insolvent, policyholders are general creditors. That's why the non-admitted disclosure is required before bind."
     },
     {
-      text: "Before submitting a risk to B&W for a non-admitted placement, what must Vouch (as the retail broker) do?",
+      text: "Why doesn't Vouch use a wholesale broker for every placement, even when one is available?",
       type: "single",
-      critical: true,
       options: [
-        "Nothing — B&W handles all compliance.",
-        "Document diligent effort: typically 3 admitted declinations OR a clear coverage-gap rationale, logged in SFDC before submitting.",
-        "File a surplus-lines affidavit directly with the state insurance department.",
-        "Get written client approval before pursuing any non-admitted quote."
+        "Wholesale carriers are slower and worse-rated.",
+        "When going direct to admitted carriers, Vouch keeps the full commission (often 20%+); when using a wholesaler, we split — our agreement with B&W gives Vouch only 13%. Going wholesale unnecessarily costs Vouch real revenue.",
+        "Wholesale carriers refuse to write standard risks.",
+        "Compliance prohibits wholesale placements."
       ],
       correct: [1],
-      explanation: "Diligent effort is our obligation as retail producer. Most states require 3 admitted declinations (with carrier, UW, date, reason) OR a documented coverage gap before placing E&S. It gets logged in SFDC Next Steps BEFORE the B&W submission."
+      explanation: "Commission economics. Direct placements pay the full 20%+ commission to Vouch. Wholesale splits — Vouch keeps 13%, B&W gets the rest. On every $10K of premium, that's $700 less to Vouch. Wholesale is the right call when admitted can't write the risk; it's the wrong call when they can."
     },
     {
-      text: "A valid admitted-carrier declination record must include which of the following? (Select ALL that apply)",
+      text: "What is the difference between an \"indication\" and a \"firm quote\"?",
+      type: "single",
+      options: [
+        "They are the same thing.",
+        "An indication is informal, non-firm pricing (a ballpark estimate); a firm quote is a binding offer with specific premium and terms that the carrier will write at if accepted.",
+        "A firm quote is informal; an indication is binding.",
+        "An indication is given by an admitted carrier; a firm quote by a non-admitted one."
+      ],
+      correct: [1],
+      explanation: "Indication = informal, non-binding ballpark. Firm quote = binding offer with a specific expiration window. Always confirm with B&W which one they're sending; never present an indication to a client as a final price."
+    },
+    {
+      text: "Which of the following contribute to a successful wholesale relationship with B&W? (select ALL that apply)",
       type: "multi",
       options: [
-        "Carrier name",
-        "Underwriter name + title",
-        "Date of decline",
-        "Specific reason for decline"
+        "Picking up the phone for risks that need judgment, not just emailing.",
+        "Submitting clean, complete packages with all ACORDs and supplementals on first send.",
+        "Including a need-by date in every submission.",
+        "Telling B&W which specific carrier to send the risk to before they shop their markets."
       ],
-      correct: [0, 1, 2, 3],
-      explanation: "All four are required. The most commonly missed piece is the underwriter's name — \"Hartford declined\" is not a complete record. You need carrier + UW + date + reason."
+      correct: [0, 1, 2],
+      explanation: "Phone for judgment, clean packages, and need-by dates all build the relationship. Prescribing a carrier is the WRONG move — B&W's value is access to 300+ markets; tell them what the client needs and let them work their book."
     },
     {
-      text: "Can you bind a wholesale policy before receiving a signed non-admitted disclosure from the client?",
-      type: "single",
-      critical: true,
-      options: [
-        "Yes, if the client agrees verbally.",
-        "Yes, if the carrier allows it.",
-        "No — signed disclosure is required before bind, no exceptions.",
-        "Only if the premium is under $5,000."
-      ],
-      correct: [2],
-      explanation: "The signed non-admitted disclosure is required before bind — no exceptions. This is a regulatory protection, not a formality. Logan is delivering the ESC Disclosure Kit (base template + state variants + DocuSign flow) as the critical-path item for go-live."
-    },
-    {
-      text: "The \"coverage gap\" exemption to diligent effort is typically used for ESC clients when:",
+      text: "The \"coverage gap\" path for diligent effort applies when:",
       type: "single",
       options: [
         "The client refuses to provide underwriting information.",
@@ -617,9 +618,12 @@
       explanation: "Corix Exclusive status means Corix gets first and only look for Corix-eligible LOBs. B&W can be approached only after Corix SLA miss/decline or when the account moves to Preferred/Exempt. For LOBs Corix doesn't write (Products, Umbrella), exclusivity doesn't apply — go straight to B&W."
     },
 
-    // -------- SECTION 2: MARKETS + REQUIRED INFO (7 Qs) --------
+    // ============================================================
+    // SECTION 2 — BURNS & WILCOX (9 Qs)
+    // Contacts, specialties, submission requirements, SLAs, B&W-specific
+    // ============================================================
     {
-      section: "Markets + Required Submission Info",
+      section: "Burns & Wilcox — Contacts, Specialties, Submission Excellence",
       text: "Who at B&W handles Professional Lines submissions (D&O, E&O, Cyber, Crime, Digital Health)?",
       type: "single",
       options: [
@@ -629,7 +633,7 @@
         "Angela Tetrick"
       ],
       correct: [1],
-      explanation: "Josh Zack (JZack@burns-wilcox.com) is the Professional Lines broker. Connor Block handles Commercial (GL, Products, Small Property, Umbrella). Erica Rangel is Josh's manager — escalation path only. Angela is on Connor's bench."
+      explanation: "Josh Zack (JZack@burns-wilcox.com) is the Professional Lines broker. Connor Block handles Commercial. Erica Rangel is Josh's manager — escalation only. Angela is on Connor's bench."
     },
     {
       text: "Who at B&W handles Commercial submissions (GL, Products, Small Property, Umbrella)?",
@@ -665,7 +669,7 @@
         "Hiscox Tech App"
       ],
       correct: [2],
-      explanation: "Tokio Marine Tech E&O / Cyber Application is the primary app. For excess layers, include the Tokio Marine app PLUS the underlying primary quote. Coalition and Arch are specific-carrier apps used for other LOBs (Coalition direct; Arch for monoline EPLI)."
+      explanation: "Tokio Marine Tech E&O / Cyber Application is the primary app. For excess layers, include the Tokio Marine app PLUS the underlying primary quote."
     },
     {
       text: "For a Management Liability (D&O / EPL / Fid) submission, what must accompany the CFC application?",
@@ -689,7 +693,7 @@
         "Years in business"
       ],
       correct: [2],
-      explanation: "Square footage. Make sure the ACORD 126 has SF filled in correctly for premises operations. Property coverage (ACORD 140) requires year built, updates, construction type, AND square footage — even for BPP-only requests."
+      explanation: "Square footage. Make sure the ACORD 126 has SF filled in correctly. Property coverage (ACORD 140) requires year built, updates, construction type, AND square footage — even for BPP-only requests."
     },
     {
       text: "Which LOB has SOFTER appetite at B&W and requires longer turnaround (~5 business days)?",
@@ -701,46 +705,100 @@
         "General Liability"
       ],
       correct: [2],
-      explanation: "Fintech / Web3 Professional Lines is B&W's softer area. Plan for ~5 business days. Set client expectations up front and line up reserve markets. Environmental is another slower path because Connor has to pull in other B&W brokers."
-    },
-
-    // -------- SECTION 3: BINDING PROCESS + CLIENT-FACING (5 Qs) --------
-    {
-      section: "Binding Process + Client Communication",
-      text: "What is the correct subject-line format for submission emails to B&W?",
-      type: "single",
-      options: [
-        "\"New submission from Vouch\"",
-        "\"[Vouch ESC] [LOB] Submission — [Client Name] — Need by [date]\"",
-        "Just the client's legal name.",
-        "\"[B&W] [Client Name] - Quote Request\""
-      ],
-      correct: [1],
-      explanation: "Subject format: \"[Vouch ESC] [LOB] Submission — [Client Name] — Need by [date]\". B&W triages from this line, so consistency across the team is the gain. Always include the need-by date in the subject itself."
+      explanation: "Fintech / Web3 Professional Lines is B&W's softer area. Plan for ~5 business days and set client expectations up front. Environmental is another slower path because Connor has to pull in other B&W brokers."
     },
     {
       text: "When communicating turnaround timelines to clients, what should you quote?",
       type: "single",
       options: [
-        "B&W's best-case SLA (e.g., same-day for Crime, next-day for Cyber tower).",
+        "B&W's best-case SLA (e.g., same-day for Crime, next-day for a Cyber tower).",
         "B&W's SLA plus a 1-2 business day buffer as the client-facing timeline.",
         "Whatever the client asks for.",
         "Next business day, always."
       ],
       correct: [1],
-      explanation: "B&W SLAs are best-case. To clients, quote B&W time PLUS 1-2 business days. If we overperform, the client feels delight. If B&W slips a day, we still deliver on the promise. For fintech/web3, widen the buffer to 1-2 weeks — and set that expectation in writing at submission."
+      explanation: "B&W SLAs are best-case. To clients, quote B&W time PLUS 1-2 business days. If we overperform, the client feels delight. If B&W slips a day, we still deliver on the promise. For fintech/web3, widen the buffer to 1-2 weeks — and put it in writing at submission."
     },
     {
-      text: "What is the expected premium impact of a wholesale / non-admitted placement compared to comparable admitted pricing?",
+      text: "When should you request a Marketing Summary from B&W? (select ALL that apply)",
+      type: "multi",
+      options: [
+        "For any proprietary client.",
+        "For deals with premium greater than $15K.",
+        "When a client wants demonstrated proof that we shopped multiple markets.",
+        "On every submission, regardless of size."
+      ],
+      correct: [0, 1, 2],
+      explanation: "Request marketing summaries for proprietary clients, deals >$15K premium, and any time the client wants visibility into the shopping process. Not necessary on every submission — only when needed."
+    },
+
+    // ============================================================
+    // SECTION 3 — PROCESS EXCELLENCE / SOP UPDATES (8 Qs)
+    // New requirements critical to project success and measurement
+    // ============================================================
+    {
+      section: "Process Excellence — New SOP Requirements",
+      text: "What button do you click in SFDC to begin a B&W placement?",
       type: "single",
       options: [
-        "Typically 5-15% higher.",
-        "Typically 30-50% higher.",
-        "About the same.",
-        "Typically lower."
+        "\"New Brokered Quote\"",
+        "\"Start Brokered Process\"",
+        "\"Submit to Wholesale\"",
+        "\"Refer to Placements\""
       ],
-      correct: [0],
-      explanation: "Expect 5-15% higher all-in (wholesaler margin + SL premium tax + stamping fee + non-admitted risk load). Always quote the all-in number — never strip SL taxes/fees from the client-facing quote. Frame it as access to a market admitted can't offer."
+      correct: [1],
+      explanation: "\"Start Brokered Process\" on the Opportunity. The flow auto-creates a Policy Object and a ZD ticket. Same flow as existing brokered placements; what's new is the Overview-of-request template (LOB+limits, why wholesale, contract drivers) and the Wholesaler tag."
+    },
+    {
+      text: "Which term(s) MUST appear in the Next Steps field of any B&W-routed Opportunity? (select ALL that apply)",
+      type: "multi",
+      critical: true,
+      options: [
+        "\"B&W\"",
+        "\"Burns\"",
+        "\"wholesale\"",
+        "\"specialty\""
+      ],
+      correct: [0, 1, 2],
+      explanation: "B&W, Burns, OR wholesale — at least one must appear explicitly in every Next Steps update on a B&W opp. This is non-negotiable. It's how we track wholesale pipeline in SFDC reporting and measure success of this rollout. \"Specialty\" is too generic and not allowed as the tag. The SOP's Next Steps templates all start with \"B&W:\" so use them as-is."
+    },
+    {
+      text: "What are subjectivities, and how should you handle them with the client?",
+      type: "single",
+      critical: true,
+      options: [
+        "Optional preferences a carrier suggests; share with the client at bind only.",
+        "Conditions a carrier requires before binding. Coverage is \"subject to\" their completion. Forward to the client immediately when the quote arrives, with their due dates — don't wait for the client to formally accept the option first.",
+        "Internal Vouch preferences; not client-facing.",
+        "Marketing notes from B&W; ignore unless asked."
+      ],
+      correct: [1],
+      explanation: "Subjectivities are conditions the carrier requires before binding. Coverage is literally \"subject to\" their completion. Forward them to the client AS SOON AS the quote arrives — they need lead time on items they have to produce. Track each item to closure in SFDC Next Steps. Be transparent: clients deserve to know coverage is conditional on day 1, not day of bind."
+    },
+    {
+      text: "Where does the non-admitted disclosure form come from for B&W placements?",
+      type: "single",
+      options: [
+        "Each IA drafts and sends their own.",
+        "Brokerage Ops sends it to the client via DocuSign as part of the standard checkout package.",
+        "Burns & Wilcox provides it directly to the client.",
+        "It's pulled from a template in the IA playbook."
+      ],
+      correct: [1],
+      explanation: "Brokerage Ops owns the form (CA D-1, DE SL-17, NY/FL state-specific variants) and sends it to the client via DocuSign as part of the standard checkout package — same flow they use for Counterpart placements. We don't draft it or chase it; B&W flags when it's needed and BO handles the paperwork."
+    },
+    {
+      text: "Can you bind a wholesale policy without confirmation that the client has signed the non-admitted disclosure?",
+      type: "single",
+      critical: true,
+      options: [
+        "Yes, if the client agrees verbally.",
+        "Yes, if the carrier allows it.",
+        "No — signed disclosure is required before bind, no exceptions.",
+        "Only if the premium is under $5,000."
+      ],
+      correct: [2],
+      explanation: "Signed disclosure is required before bind — no exceptions. This is a regulatory protection, not a formality. Brokerage Ops will not finalize a bind without it on file. Confirm signed before submitting your bind request."
     },
     {
       text: "Which ZenDesk macro is used to request bind processing from Brokerage Ops for a B&W placement?",
@@ -752,22 +810,34 @@
         "\"Simple Bind - Alpha\""
       ],
       correct: [1],
-      explanation: "\"Bind Req to BO - Brokered Opp Close Request (BOS)\" triggers the 2-hour BO turnaround. Include carrier binder, invoice (with SL tax/fee), signed non-admitted disclosure, and the SFDC Account link. (This slide is flagged DRAFT in the deck — still under cross-functional review with Brokerage Ops.)"
+      explanation: "\"Bind Req to BO - Brokered Opp Close Request (BOS)\" triggers the 2-hour BO turnaround. Include carrier binder, invoice (with SL tax/fee), confirmation of signed non-admitted disclosure, and the SFDC Account link."
     },
     {
-      text: "A client expresses concern after seeing the non-admitted disclosure, saying \"why isn't this a real policy?\" What do you do?",
+      text: "How should B&W-related emails be logged in SFDC?",
       type: "single",
-      critical: true,
       options: [
-        "Proceed to bind — the disclosure is just a formality.",
-        "Tell the client the admitted market refused to write them, so it's this or nothing.",
-        "Educate, don't deflect: explain what non-admitted actually means, offer a 15-min call with Logan if they want deeper assurance, document the conversation in SFDC.",
-        "Cancel the submission and try the admitted markets again."
+        "Forward each one to advisors@vouch.us.",
+        "Use the Gmail SFDC widget OR Connected Accounts auto-tag, and confirm each email is associated with both the Opportunity and the Policy Object.",
+        "Save them as PDFs only.",
+        "B&W emails auto-log via their portal."
       ],
-      correct: [2],
-      explanation: "Educate, don't deflect. Non-admitted doesn't mean unregulated or risky — it means the carrier is on the state's approved SL list but not state-licensed. Explain the trade-off (no guaranty fund backing, broader appetite), offer Logan as a resource if the client wants more assurance, and document the conversation. Never tell a client the disclosure is \"just a formality\" — it's a legal acknowledgment."
+      correct: [1],
+      explanation: "Use the Gmail SFDC widget or Connected Accounts auto-tag. Every B&W email — submission, acknowledgment, quote, subjectivity, bind order, binder, policy doc — must end up logged against the Opportunity AND the Policy Object. Add Josh and Connor to SFDC Contacts so auto-tagging works."
+    },
+    {
+      text: "When should you NOT route a deal to B&W? (select ALL that apply)",
+      type: "multi",
+      options: [
+        "Small deals under ~$1,000 in premium — wholesale margins make the math bad for the client.",
+        "Corix Exclusive accounts where the LOB is in Corix scope.",
+        "Existing Placements-owned brokered renewals on this account.",
+        "A client's coverage gap where no admitted carrier in our panel will write the risk."
+      ],
+      correct: [0, 1, 2],
+      explanation: "Don't route to B&W on small-premium deals (the economics break for everyone), Corix Exclusive accounts, or existing Placements-owned renewals (that team has the relationship). DO route to B&W when there's a coverage gap — that's the whole point."
     }
   ];
+
 
   // Track critical-question indices
   const criticalIndices = questions.map((q, i) => q.critical ? i : -1).filter(i => i !== -1);
@@ -784,7 +854,7 @@
   questions.forEach((q, idx) => {
     if (q.section && q.section !== currentSection) {
       currentSection = q.section;
-      const sectionNum = idx === 0 ? "01" : (idx === 8 ? "02" : "03");
+      const sectionNum = idx === 0 ? "01" : (idx === 8 ? "02" : (idx === 17 ? "03" : "03"));
       const sectionHeader = document.createElement("section");
       sectionHeader.className = "section-header";
       sectionHeader.innerHTML = `<div class="num">SECTION ${sectionNum}</div><h2>${q.section}</h2>`;
@@ -874,6 +944,61 @@
   });
 
   // ============================================================
+  // SLACK PAYLOAD BUILDER
+  // ============================================================
+  function buildSlackPayload(d) {
+    const scoreInt = Math.round(d.scorePct * 100);
+    const verdictText = d.passed ? "PASSED" : "NOT PASSED";
+    const headerEmoji = d.passed ? "✅" : "❌";
+    const fallback = `[${verdictText}] ${d.taker.name} — ${scoreInt}% on B&W Wholesale Assessment`;
+
+    const tsString = d.timestamp.toLocaleString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit", timeZone: "America/New_York", timeZoneName: "short"
+    });
+
+    const blocks = [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: `${headerEmoji} ${d.taker.name} — ${verdictText} (${scoreInt}%)`
+        }
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Score:*\n${scoreInt}% (${d.correctCount} of ${d.totalCount})` },
+          { type: "mrkdwn", text: `*Critical path:*\n${d.criticalPassed} of ${d.criticalTotal} ${d.criticalPassed === d.criticalTotal ? "✓" : "✗"}` },
+          { type: "mrkdwn", text: `*Email:*\n${d.taker.email}` },
+          { type: "mrkdwn", text: `*Role:*\n${d.taker.role || "_not specified_"}` }
+        ]
+      }
+    ];
+
+    if (d.missed.length > 0) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: `*Missed questions:* ${d.missed.join(", ")}` }
+      });
+    }
+
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: d.passed
+            ? `Submitted ${tsString} · Ready for greenlight from David.`
+            : `Submitted ${tsString} · Will retake. No greenlight yet.`
+        }
+      ]
+    });
+
+    return { text: fallback, blocks: blocks };
+  }
+
+  // ============================================================
   // RENDER RESULTS
   // ============================================================
   function renderResults(results, taker) {
@@ -916,8 +1041,12 @@
     document.getElementById("score-display").innerHTML = `${Math.round(scorePct * 100)}<small>%</small>`;
     document.getElementById("verdict-display").textContent = passed ? "You're certified." : "Not yet — review and retake.";
     document.getElementById("verdict-message").textContent = passed
-      ? "Click Email Results below to send your score to David (CC'd to you). He'll greenlight you to run B&W submissions after confirming."
+      ? `Your score has been posted to ${SLACK_CHANNEL} in Slack. David will greenlight you to run B&W submissions after reviewing.`
       : "Scroll up to see which questions to review. Re-read the playbook, then take the assessment again. No cap on attempts.";
+
+    // Update channel display to match config
+    const slackChannelEl = document.getElementById("slack-channel-display");
+    if (slackChannelEl) slackChannelEl.textContent = SLACK_CHANNEL;
 
     // Stats
     document.getElementById("stat-correct").textContent = correctCount;
@@ -967,31 +1096,29 @@ ${passed
       passed: passed
     };
 
-    // Auto-log to Google Apps Script endpoint (if configured).
-    // Fire-and-forget; uses no-cors + text/plain to skip CORS preflight.
-    if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.startsWith("https://script.google.com/")) {
+    // Auto-post to Slack webhook (if configured).
+    // Fire-and-forget; uses payload= form-encoding to skip CORS preflight.
+    if (SLACK_WEBHOOK_URL && SLACK_WEBHOOK_URL.startsWith("https://hooks.slack.com/")) {
       try {
-        fetch(APPS_SCRIPT_URL, {
+        const slackPayload = buildSlackPayload({
+          taker: taker,
+          scorePct: scorePct,
+          correctCount: correctCount,
+          totalCount: totalCount,
+          criticalPassed: criticalPassed,
+          criticalTotal: criticalTotal,
+          missed: incorrect,
+          passed: passed,
+          timestamp: now
+        });
+        fetch(SLACK_WEBHOOK_URL, {
           method: "POST",
           mode: "no-cors",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({
-            name: taker.name,
-            email: taker.email,
-            role: taker.role || "",
-            score_pct: Math.round(scorePct * 100),
-            correct: correctCount,
-            incorrect: totalCount - correctCount,
-            total: totalCount,
-            critical_passed: criticalPassed,
-            critical_total: criticalTotal,
-            verdict: verdictShort.replace(" ", "_"),
-            missed_questions: incorrect.join(", "),
-            timestamp: now.toISOString()
-          })
-        }).catch(e => console.log("Submission log failed:", e));
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "payload=" + encodeURIComponent(JSON.stringify(slackPayload))
+        }).catch(e => console.log("Slack post failed:", e));
       } catch (e) {
-        console.log("Submission log failed:", e);
+        console.log("Slack post failed:", e);
       }
     }
 
@@ -1002,30 +1129,8 @@ ${passed
   }
 
   // ============================================================
-  // EMAIL / COPY / RETAKE
+  // COPY / RETAKE
   // ============================================================
-  document.getElementById("email-btn").addEventListener("click", () => {
-    const r = window.__assessmentResults;
-    if (!r) return;
-
-    const subject = `B&W Wholesale Assessment — ${r.taker.name} — ${Math.round(r.scorePct * 100)}% ${r.verdict}`;
-    const body = r.summary + "\n\n— Sent from the B&W Wholesale Assessment";
-
-    // mailto: fields — To: taker, CC: manager
-    const mailtoUrl = `mailto:${encodeURIComponent(r.taker.email)}`
-      + `?cc=${encodeURIComponent(MANAGER_EMAIL)}`
-      + `&subject=${encodeURIComponent(subject)}`
-      + `&body=${encodeURIComponent(body)}`;
-
-    // Attempt to open mail client
-    window.location.href = mailtoUrl;
-
-    const btn = document.getElementById("email-btn");
-    const orig = btn.textContent;
-    btn.textContent = "✓ Opening mail client…";
-    setTimeout(() => { btn.textContent = orig; }, 3000);
-  });
-
   document.getElementById("copy-btn").addEventListener("click", () => {
     const text = document.getElementById("summary-text").textContent;
     navigator.clipboard.writeText(text).then(() => {
